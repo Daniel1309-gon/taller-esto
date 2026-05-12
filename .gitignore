@@ -1,3 +1,4 @@
 .venv/
 cap 13.pdf
 __pycache__/
+outputs/

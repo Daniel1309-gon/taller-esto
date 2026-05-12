@@ -20,9 +20,11 @@ Sección 13.4, Figuras 13.17–13.22.
 """
 
 import time
+
 import pandas as pd
 from data_cpts import create_telecom_network
 from inference import rejection_sampling, likelihood_weighting, gibbs_sampling
+from plotting import plot_burn_in_results, plot_experiment_results, plot_rare_evidence_results
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -92,6 +94,7 @@ def run_experiment(scenario_name, query_var, evidence, bn, sample_sizes):
 
     df = pd.DataFrame(results)
     print(df.to_string(index=False))
+    plot_experiment_results(scenario_name, df)
     return df
 
 
@@ -156,6 +159,7 @@ def run_burn_in_experiment(scenario_name, query_var, evidence, bn, N, burn_in_va
 
     df = pd.DataFrame(results)
     print(df.to_string(index=False))
+    plot_burn_in_results(scenario_name, df)
     return df
 
 
@@ -219,6 +223,7 @@ def run_rare_evidence_experiment(scenario_name, query_var, evidence, bn, sample_
 
     df = pd.DataFrame(results)
     print(df.to_string(index=False))
+    plot_rare_evidence_results(scenario_name, df)
     return df
 
 
@@ -234,11 +239,9 @@ def main():
     # Construir la Red Bayesiana con todos sus nodos, aristas y CPTs
     bn = create_telecom_network()
 
-    # Tamaños de muestra usados en los escenarios estándar
-    # N=100: resultados ruidosos (pocas muestras)
-    # N=1000: balance entre velocidad y precisión
-    # N=10000: alta precisión, más lento
-    sample_sizes = [100, 1000, 10000]
+    # Tamaños de muestra altos usados en los escenarios estándar.
+    # A mayor N, menor variabilidad Monte Carlo, con mayor costo de ejecución.
+    sample_sizes = [1000, 5000, 10000, 20000]
 
     # ── Escenarios originales ──────────────────────────────────────────────────
 
@@ -269,8 +272,8 @@ def main():
     # Escenario 3: Propagación hacia abajo desde una causa raíz poco frecuente
     # Pregunta: si hay clima severo, ¿cuál es la probabilidad de perder internet?
     # Clima_Severo (P=0.05) es raíz → la evidencia es "upstream" de la consulta.
-    # Rejection Sampling puede tener dificultades con N=100 porque P(Clima=True)=0.05
-    # significa que solo ~5 de cada 100 muestras prior tienen ese valor.
+    # Rejection Sampling puede tener dificultades porque P(Clima=True)=0.05:
+    # incluso con N alto, solo una fracción pequeña de muestras prior coincide.
     run_experiment(
         "Escenario 3 (Causa Rara)",
         query_var="Sin_Internet",
@@ -282,8 +285,8 @@ def main():
     # ── Escenarios que ejercitan los cambios implementados ─────────────────────
 
     # Escenario 4: Impacto del burn-in en la precisión de Gibbs Sampling
-    # Usa la misma consulta del Escenario 2 con N=2000 pasos de conteo fijos.
-    # Se varía el burn-in desde 0 (sin descarte) hasta 1000 (50 % de N).
+    # Usa la misma consulta del Escenario 2 con N=10000 pasos de conteo fijos.
+    # Se varía el burn-in desde 0 % hasta 50 % de N.
     # Resultado esperado: con burn_in=0 la estimación es más variable porque
     # incluye el transiente inicial; con burn_in ≥ 200 la estimación se estabiliza.
     run_burn_in_experiment(
@@ -291,23 +294,22 @@ def main():
         query_var="Caida_DNS",
         evidence={"Sin_Internet": 1, "Pagina_No_Carga": 1},
         bn=bn,
-        N=2000,
-        burn_in_values=[0, 50, 200, 500, 1000],
+        N=10000,
+        burn_in_values=[0, 500, 1000, 2500, 5000],
     )
 
     # Escenario 5: Evidencia combinada de probabilidad prior muy baja
     # P(Fallo_Router | Clima_Severo=T, Sin_Internet=T, Pagina_No_Carga=T)
     # La probabilidad prior de esta evidencia conjunta es muy pequeña porque
     # Clima_Severo=True solo ocurre el 5 % del tiempo.
-    # Para N=50 o N=200, Rejection Sampling frecuentemente no acepta ninguna muestra
-    # y activa el fallback → devuelve 0.5/0.5.
-    # Likelihood Weighting y Gibbs producen estimaciones razonables incluso para N pequeños.
+    # Rejection Sampling puede aceptar pocas muestras aun con N alto, por lo que
+    # sus estimaciones suelen ser más variables que Likelihood Weighting y Gibbs.
     run_rare_evidence_experiment(
         "Escenario 5 (Evidencia Extrema — Fix Rejection Sampling)",
         query_var="Fallo_Router",
         evidence={"Clima_Severo": 1, "Sin_Internet": 1, "Pagina_No_Carga": 1},
         bn=bn,
-        sample_sizes=[50, 200, 1000, 5000],
+        sample_sizes=[1000, 5000, 10000, 20000],
     )
 
 
