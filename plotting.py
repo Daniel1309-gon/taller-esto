@@ -104,6 +104,7 @@ def save_errorbar_plot(
     filename,
     group_col=None,
     log_x=False,
+    y_limits=None,
 ):
     """
     Guarda una gráfica de media con barras de desviación estándar.
@@ -137,6 +138,8 @@ def save_errorbar_plot(
 
     if log_x:
         ax.set_xscale("log")
+    if y_limits:
+        ax.set_ylim(*y_limits)
 
     ax.set_title(title)
     ax.set_xlabel(x_label)
@@ -168,6 +171,7 @@ def plot_experiment_results(scenario_name, df):
         filename=f"{base_name}_probabilidad.png",
         group_col="Algorithm",
         log_x=True,
+        y_limits=(0, 1),
     )
     save_errorbar_plot(
         summary,
@@ -200,6 +204,7 @@ def plot_burn_in_results(scenario_name, df):
         x_label="Burn-in",
         y_label="P(True)",
         filename=f"{base_name}_probabilidad.png",
+        y_limits=(0, 1),
     )
     save_errorbar_plot(
         summary,
@@ -232,6 +237,7 @@ def plot_rare_evidence_results(scenario_name, df):
         filename=f"{base_name}_probabilidad.png",
         group_col="Algorithm",
         log_x=True,
+        y_limits=(0, 1),
     )
     save_errorbar_plot(
         summary,

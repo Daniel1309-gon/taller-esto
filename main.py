@@ -265,9 +265,9 @@ def main():
     # Tamaños de muestra altos usados en los escenarios estándar.
     # A mayor N, menor variabilidad Monte Carlo, con mayor costo de ejecución.
     sample_sizes = [1000, 5000, 10000, 20000]
-    num_runs = 10
+    num_runs = 30
 
-    # ── Escenarios originales ──────────────────────────────────────────────────
+    # ── Escenarios orburn_iginales ──────────────────────────────────────────────────
 
     # Escenario 1: Diagnóstico con una sola observación (evidencia upstream)
     # Pregunta: si el usuario reporta que no tiene internet, ¿cuál es la
@@ -322,7 +322,7 @@ def main():
         evidence={"Sin_Internet": 1, "Pagina_No_Carga": 1},
         bn=bn,
         N=10000,
-        burn_in_values=[0, 500, 1000, 2500, 5000],
+        burn_in_values=[0, 250, 500, 1000, 1500, 2000, 2500, 3000, 5000],
         num_runs=num_runs,
     )
 
