@@ -31,7 +31,7 @@ from plotting import plot_burn_in_results, plot_experiment_results, plot_rare_ev
 # Experimento estándar: compara los tres algoritmos para distintos N
 # ──────────────────────────────────────────────────────────────────────────────
 
-def run_experiment(scenario_name, query_var, evidence, bn, sample_sizes):
+def run_experiment(scenario_name, query_var, evidence, bn, sample_sizes, num_runs):
     """
     Ejecuta los tres algoritmos de inferencia (Rejection, Likelihood Weighting
     y Gibbs) para una consulta P(query_var | evidence) con cada N en
@@ -53,48 +53,53 @@ def run_experiment(scenario_name, query_var, evidence, bn, sample_sizes):
         Red Bayesiana construida con create_telecom_network().
     sample_sizes : list[int]
         Lista de valores de N a evaluar (p.ej. [100, 1000, 10000]).
+    num_runs : int
+        Número de corridas independientes por cada tamaño de muestra.
 
     Devuelve
     --------
     pd.DataFrame
-        Tabla de resultados con columnas: N, Algorithm, P(True), Time(s).
+        Tabla de resultados con columnas: Run, N, Algorithm, P(True), Time(s).
     """
     results = []
 
     print(f"\n--- Running Experiment: {scenario_name} ---")
     print(f"Query: P({query_var} | {evidence})")
 
-    for N in sample_sizes:
+    for run in range(1, num_runs + 1):
+        for N in sample_sizes:
 
-        # ── Rejection Sampling ────────────────────────────────────────────────
-        # Genera N muestras prior y descarta las inconsistentes con la evidencia.
-        # Lento cuando P(e) es pequeña (pocas muestras pasan el filtro).
-        start   = time.time()
-        res_rej = rejection_sampling(query_var, evidence, bn, N)
-        t_rej   = time.time() - start
+            # ── Rejection Sampling ────────────────────────────────────────────
+            # Genera N muestras prior y descarta las inconsistentes con la evidencia.
+            # Lento cuando P(e) es pequeña (pocas muestras pasan el filtro).
+            start   = time.time()
+            res_rej = rejection_sampling(query_var, evidence, bn, N)
+            t_rej   = time.time() - start
 
-        # ── Likelihood Weighting ──────────────────────────────────────────────
-        # Genera N muestras ponderadas; nunca descarta — todas contribuyen con
-        # peso proporcional a la verosimilitud de la evidencia.
-        start  = time.time()
-        res_lw = likelihood_weighting(query_var, evidence, bn, N)
-        t_lw   = time.time() - start
+            # ── Likelihood Weighting ──────────────────────────────────────────
+            # Genera N muestras ponderadas; nunca descarta — todas contribuyen con
+            # peso proporcional a la verosimilitud de la evidencia.
+            start  = time.time()
+            res_lw = likelihood_weighting(query_var, evidence, bn, N)
+            t_lw   = time.time() - start
 
-        # ── Gibbs Sampling (MCMC) ─────────────────────────────────────────────
-        # Cadena de Markov que cambia una variable a la vez muestreando de su
-        # Manto de Markov.  Usa burn-in por defecto (N // 10 pasos descartados).
-        start     = time.time()
-        res_gibbs = gibbs_sampling(query_var, evidence, bn, N)
-        t_gibbs   = time.time() - start
+            # ── Gibbs Sampling (MCMC) ─────────────────────────────────────────
+            # Cadena de Markov que cambia una variable a la vez muestreando de su
+            # Manto de Markov.  Usa burn-in por defecto (N // 10 pasos descartados).
+            start     = time.time()
+            res_gibbs = gibbs_sampling(query_var, evidence, bn, N)
+            t_gibbs   = time.time() - start
 
-        # Acumular resultados de los tres algoritmos para este N
-        results.append({'N': N, 'Algorithm': 'Rejection',  'P(True)': round(res_rej[1],   4), 'Time(s)': round(t_rej,   4)})
-        results.append({'N': N, 'Algorithm': 'Likelihood', 'P(True)': round(res_lw[1],    4), 'Time(s)': round(t_lw,    4)})
-        results.append({'N': N, 'Algorithm': 'Gibbs',      'P(True)': round(res_gibbs[1], 4), 'Time(s)': round(t_gibbs, 4)})
+            # Acumular resultados de los tres algoritmos para este N
+            results.append({'Run': run, 'N': N, 'Algorithm': 'Rejection',  'P(True)': round(res_rej[1],   4), 'Time(s)': round(t_rej,   4)})
+            results.append({'Run': run, 'N': N, 'Algorithm': 'Likelihood', 'P(True)': round(res_lw[1],    4), 'Time(s)': round(t_lw,    4)})
+            results.append({'Run': run, 'N': N, 'Algorithm': 'Gibbs',      'P(True)': round(res_gibbs[1], 4), 'Time(s)': round(t_gibbs, 4)})
 
     df = pd.DataFrame(results)
     print(df.to_string(index=False))
-    plot_experiment_results(scenario_name, df)
+    summary = plot_experiment_results(scenario_name, df)
+    print("\nResumen estadístico:")
+    print(summary.to_string(index=False))
     return df
 
 
@@ -102,7 +107,7 @@ def run_experiment(scenario_name, query_var, evidence, bn, sample_sizes):
 # Escenario 4: Efecto del burn-in en Gibbs Sampling
 # ──────────────────────────────────────────────────────────────────────────────
 
-def run_burn_in_experiment(scenario_name, query_var, evidence, bn, N, burn_in_values):
+def run_burn_in_experiment(scenario_name, query_var, evidence, bn, N, burn_in_values, num_runs):
     """
     Evalúa cómo varía la estimación de Gibbs Sampling al cambiar el período
     de burn-in, manteniendo fijo el número de pasos de conteo (N).
@@ -133,33 +138,39 @@ def run_burn_in_experiment(scenario_name, query_var, evidence, bn, N, burn_in_va
         Número de pasos que se CUENTAN (constante en todos los runs).
     burn_in_values : list[int]
         Lista de períodos de burn-in a comparar.
+    num_runs : int
+        Número de corridas independientes por cada valor de burn-in.
 
     Devuelve
     --------
     pd.DataFrame
-        Tabla con columnas: Burn-in, N conteo, P(True), Time(s).
+        Tabla con columnas: Run, Burn-in, N conteo, P(True), Time(s).
     """
     results = []
 
     print(f"\n--- {scenario_name} ---")
     print(f"Query: P({query_var} | {evidence})  |  N={N} pasos de conteo")
 
-    for burn_in in burn_in_values:
-        start = time.time()
-        # Se pasa burn_in explícitamente para sobreescribir el default (N//10)
-        res = gibbs_sampling(query_var, evidence, bn, N, burn_in=burn_in)
-        t   = time.time() - start
+    for run in range(1, num_runs + 1):
+        for burn_in in burn_in_values:
+            start = time.time()
+            # Se pasa burn_in explícitamente para sobreescribir el default (N//10)
+            res = gibbs_sampling(query_var, evidence, bn, N, burn_in=burn_in)
+            t   = time.time() - start
 
-        results.append({
-            'Burn-in':  burn_in,
-            'N conteo': N,
-            'P(True)':  round(res[1], 4),
-            'Time(s)':  round(t, 4),
-        })
+            results.append({
+                'Run':      run,
+                'Burn-in':  burn_in,
+                'N conteo': N,
+                'P(True)':  round(res[1], 4),
+                'Time(s)':  round(t, 4),
+            })
 
     df = pd.DataFrame(results)
     print(df.to_string(index=False))
-    plot_burn_in_results(scenario_name, df)
+    summary = plot_burn_in_results(scenario_name, df)
+    print("\nResumen estadístico:")
+    print(summary.to_string(index=False))
     return df
 
 
@@ -167,7 +178,7 @@ def run_burn_in_experiment(scenario_name, query_var, evidence, bn, N, burn_in_va
 # Escenario 5: Evidencia extremadamente improbable
 # ──────────────────────────────────────────────────────────────────────────────
 
-def run_rare_evidence_experiment(scenario_name, query_var, evidence, bn, sample_sizes):
+def run_rare_evidence_experiment(scenario_name, query_var, evidence, bn, sample_sizes, num_runs):
     """
     Compara los tres algoritmos ante una combinación de evidencia que tiene
     probabilidad prior muy baja, evidenciando el fallback de Rejection Sampling.
@@ -199,11 +210,13 @@ def run_rare_evidence_experiment(scenario_name, query_var, evidence, bn, sample_
         Red Bayesiana.
     sample_sizes : list[int]
         Valores de N a evaluar (se usan N pequeños para ver el fallback).
+    num_runs : int
+        Número de corridas independientes por cada tamaño de muestra.
 
     Devuelve
     --------
     pd.DataFrame
-        Tabla con columnas: N, Algorithm, P(True).
+        Tabla con columnas: Run, N, Algorithm, P(True), Time(s).
     """
     results = []
 
@@ -211,19 +224,29 @@ def run_rare_evidence_experiment(scenario_name, query_var, evidence, bn, sample_
     print(f"Query: P({query_var} | {evidence})")
     print("  [Rejection puede devolver 0.5/0.5 para N pequeños por falta de muestras aceptadas]")
 
-    for N in sample_sizes:
-        # Los tres algoritmos sin medir tiempo (el foco es la precisión, no la velocidad)
-        res_rej   = rejection_sampling(query_var, evidence, bn, N)
-        res_lw    = likelihood_weighting(query_var, evidence, bn, N)
-        res_gibbs = gibbs_sampling(query_var, evidence, bn, N)
+    for run in range(1, num_runs + 1):
+        for N in sample_sizes:
+            start = time.time()
+            res_rej = rejection_sampling(query_var, evidence, bn, N)
+            t_rej = time.time() - start
 
-        results.append({'N': N, 'Algorithm': 'Rejection',  'P(True)': round(res_rej[1],   4)})
-        results.append({'N': N, 'Algorithm': 'Likelihood', 'P(True)': round(res_lw[1],    4)})
-        results.append({'N': N, 'Algorithm': 'Gibbs',      'P(True)': round(res_gibbs[1], 4)})
+            start = time.time()
+            res_lw = likelihood_weighting(query_var, evidence, bn, N)
+            t_lw = time.time() - start
+
+            start = time.time()
+            res_gibbs = gibbs_sampling(query_var, evidence, bn, N)
+            t_gibbs = time.time() - start
+
+            results.append({'Run': run, 'N': N, 'Algorithm': 'Rejection',  'P(True)': round(res_rej[1],   4), 'Time(s)': round(t_rej,   4)})
+            results.append({'Run': run, 'N': N, 'Algorithm': 'Likelihood', 'P(True)': round(res_lw[1],    4), 'Time(s)': round(t_lw,    4)})
+            results.append({'Run': run, 'N': N, 'Algorithm': 'Gibbs',      'P(True)': round(res_gibbs[1], 4), 'Time(s)': round(t_gibbs, 4)})
 
     df = pd.DataFrame(results)
     print(df.to_string(index=False))
-    plot_rare_evidence_results(scenario_name, df)
+    summary = plot_rare_evidence_results(scenario_name, df)
+    print("\nResumen estadístico:")
+    print(summary.to_string(index=False))
     return df
 
 
@@ -242,6 +265,7 @@ def main():
     # Tamaños de muestra altos usados en los escenarios estándar.
     # A mayor N, menor variabilidad Monte Carlo, con mayor costo de ejecución.
     sample_sizes = [1000, 5000, 10000, 20000]
+    num_runs = 10
 
     # ── Escenarios originales ──────────────────────────────────────────────────
 
@@ -255,6 +279,7 @@ def main():
         evidence={"Sin_Internet": 1},
         bn=bn,
         sample_sizes=sample_sizes,
+        num_runs=num_runs,
     )
 
     # Escenario 2: Diagnóstico con dos síntomas simultáneos
@@ -267,6 +292,7 @@ def main():
         evidence={"Sin_Internet": 1, "Pagina_No_Carga": 1},
         bn=bn,
         sample_sizes=sample_sizes,
+        num_runs=num_runs,
     )
 
     # Escenario 3: Propagación hacia abajo desde una causa raíz poco frecuente
@@ -280,6 +306,7 @@ def main():
         evidence={"Clima_Severo": 1},
         bn=bn,
         sample_sizes=sample_sizes,
+        num_runs=num_runs,
     )
 
     # ── Escenarios que ejercitan los cambios implementados ─────────────────────
@@ -296,6 +323,7 @@ def main():
         bn=bn,
         N=10000,
         burn_in_values=[0, 500, 1000, 2500, 5000],
+        num_runs=num_runs,
     )
 
     # Escenario 5: Evidencia combinada de probabilidad prior muy baja
@@ -310,6 +338,7 @@ def main():
         evidence={"Clima_Severo": 1, "Sin_Internet": 1, "Pagina_No_Carga": 1},
         bn=bn,
         sample_sizes=[1000, 5000, 10000, 20000],
+        num_runs=num_runs,
     )
 
 
